@@ -1,0 +1,17 @@
+micronaut:
+  application:
+    name: airdrop
+datasources:
+  default:
+    url: jdbc:mysql://localhost:3306/db
+    driverClassName: com.mysql.cj.jdbc.Driver
+    username: root
+    password: ''
+jasync:
+  client:
+    port: 5432
+    host: the-host
+    database: the-db
+    username: test
+    password: test
+    maxActiveConnections: 5

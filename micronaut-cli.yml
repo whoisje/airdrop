@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: com.jy.data
+testFramework: kotest
+sourceLanguage: kotlin
+buildTool: gradle
+features: [annotation-api, app-name, gradle, http-client, jasync-sql, jdbc-hikari, kotest, kotlin, kotlin-application, logback, mysql, netty-server, readme, shade, testcontainers, yaml]
