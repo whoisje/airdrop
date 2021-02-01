@@ -1,8 +1,7 @@
-package com.jy.data.core.step
+package com.jy.data.core.operator
 
 import io.reactivex.rxjava3.core.BackpressureStrategy
 import io.reactivex.rxjava3.kotlin.Flowables
-import io.reactivex.rxjava3.kotlin.toFlowable
 import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
 import java.util.concurrent.TimeUnit
@@ -21,9 +20,9 @@ fun main() {
                 emitter.onNext(item);
             }
     }.groupBy {
-            it.name
-        }
-        .delay(1000,TimeUnit.DAYS)
+        it.name
+    }
+        .delay(1000, TimeUnit.DAYS)
         .subscribe { flow ->
             flow
                 .groupBy { it.age }
@@ -37,7 +36,9 @@ fun main() {
 }
 
 val subscriber = object : Subscriber<Item> {
+    override fun onSubscribe(s: Subscription?) {
 
+    }
 
     override fun onNext(item: Item?) {
         println(item)
@@ -48,9 +49,6 @@ val subscriber = object : Subscriber<Item> {
     }
 
     override fun onComplete() {
-    }
-
-    override fun onSubscribe(s: Subscription?) {
     }
 
 }
