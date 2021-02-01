@@ -19,30 +19,19 @@ fun main() {
             .forEach { item ->
                 emitter.onNext(item);
             }
-    }.groupBy {
-        it.name
-    }
-        .delay(1000, TimeUnit.DAYS)
-        .subscribe { flow ->
-            flow
-                .groupBy { it.age }
-                .subscribe { newFlow ->
-                    newFlow
-                        .filter { it.age == 2 }
-                        .doOnEach(subscriber)
-                        .subscribe()
-                }
-        }
+    }.subscribe(subscriber)
+    subscriber
 }
 
 val subscriber = object : Subscriber<Item> {
-    override fun onSubscribe(s: Subscription?) {
-
+    lateinit var subscription: Subscription;
+    override fun onSubscribe(sub: Subscription) {
+        this.subscription = sub
+        sub.request(4)
     }
 
     override fun onNext(item: Item?) {
         println(item)
-        println(Thread.currentThread())
     }
 
     override fun onError(throwable: Throwable?) {
