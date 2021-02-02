@@ -1,7 +1,9 @@
 package com.jy.data.core.task
 
 import com.jy.data.core.constant.DEFAULT_CHANNEL_SIZE
-import com.jy.data.core.row.Row
+import com.jy.data.core.constant.enums.StepType
+import com.jy.data.core.event.RxBus
+import com.jy.data.core.event.StepExceptionEvent
 import com.jy.data.core.step.Step
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -21,6 +23,13 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     private var cacheSize = DEFAULT_CHANNEL_SIZE;
 
     /**
+     * TODO 把属性转换为步骤对象
+     */
+    fun convertOptionToStep() {
+
+    }
+
+    /**
      * 用channel串联步骤
      */
     fun buildStepClainAndChannel() {
@@ -29,12 +38,11 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                 steps[target]?.let { targetStep ->
                     val receiveChannel = targetStep.receiveChannel
                     if (receiveChannel == null) {
-                        val channel = Channel<List<Row>>(cacheSize)
-                        targetStep.receiveChannel = channel
-                        step.sendChannels[target] = channel
-                    } else {
-                        val channel: Channel<List<Row>> = receiveChannel;
-                        step.sendChannels[target] = channel
+                        targetStep.receiveChannel = Channel(cacheSize)
+                    }
+                    when (StepType.typeOf(targetStep.info.stepType)) {
+                        StepType.NORMAL -> step.sendChannels[target] = targetStep.receiveChannel!!
+                        StepType.ERROR -> step.errorChannels[target] = targetStep.receiveChannel!!
                     }
                 }
             }
@@ -49,9 +57,7 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                         val unload = step.process()
                         unloadFunc.putIfAbsent(key, unload)
                     } catch (e: Exception) {
-                        logger.error(e.message, e)
-                        step.info.errorCount++
-                        this@CoroutineTask.cancel()
+                        RxBus.instance.post(StepExceptionEvent(step.info, step.currentRows, e))
                     }
                 }
             }
@@ -75,6 +81,15 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                 unloadFunc[key]?.invoke()
             }
         }
+    }
+
+    fun handleStepError() {
+        RxBus.instance.toObservable(StepExceptionEvent::class.java)
+            .subscribe {
+                GlobalScope.launch {
+                    steps[it.info.id]?.putErrorRows(it.rows)
+                }
+            }
     }
 
 }
