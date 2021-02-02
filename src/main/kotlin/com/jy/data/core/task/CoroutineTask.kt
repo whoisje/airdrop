@@ -43,8 +43,13 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
         steps.forEach { (key, step) ->
             stepJobs[key] = GlobalScope.launch {
                 while (isActive) {
-                    val unload = step.process()
-                    unloadFunc.putIfAbsent(key, unload)
+                    try {
+                        val unload = step.process()
+                        unloadFunc.putIfAbsent(key, unload)
+                    } catch (e: Exception) {
+                        this@CoroutineTask.cancel()
+                    }
+
                 }
             }
         }
