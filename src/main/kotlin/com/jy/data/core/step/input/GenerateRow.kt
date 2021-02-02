@@ -11,13 +11,12 @@ import com.jy.data.core.step.StepInfo
  * @Date 2021/2/1 20:18
  */
 class GenerateRow(
-    info: StepInfo,
+        info: StepInfo,
 ) : Step(info) {
     private lateinit var state: GenerateRowState;
     private var prop: GenerateRowProp = Gson().fromJson(info.option);
 
     init {
-
     }
 
     override suspend fun process(): () -> Unit {
@@ -33,9 +32,9 @@ class GenerateRow(
 }
 
 data class GenerateRowState(
-    var index: Int = 0,
+        var index: Int = 0,
 )
 
 data class GenerateRowProp(
-    var count: Int = 0,
+        var count: Int = 0,
 )
