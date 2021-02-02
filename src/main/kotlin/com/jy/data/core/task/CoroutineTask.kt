@@ -49,7 +49,6 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                     } catch (e: Exception) {
                         this@CoroutineTask.cancel()
                     }
-
                 }
             }
         }
@@ -67,8 +66,9 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     fun cancel() {
         stepJobs.forEach { (key, job) ->
             runBlocking {
-                unloadFunc[key]?.invoke()
                 job.cancelAndJoin()
+                //调用销毁回调
+                unloadFunc[key]?.invoke()
             }
         }
     }
