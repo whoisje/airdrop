@@ -30,6 +30,7 @@ abstract class Step(
     }
 
     suspend fun putRowsTo(target: String, rows: List<Row>) {
+        info.outCount += rows.size
         sendChannels[target]?.send(rows)
     }
 }
