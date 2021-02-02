@@ -17,11 +17,14 @@ abstract class Step(
     var sendChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
     abstract suspend fun process()
     suspend fun getRows(): List<Row> {
-        return receiveChannel?.receive() ?: listOf()
+        val rows = receiveChannel?.receive() ?: listOf()
+        info.inCount += rows.size;
+        return rows;
     }
 
     suspend fun putRows(rows: List<Row>) {
         for (sendChannel in sendChannels) {
+            info.outCount += rows.size
             sendChannel.value.send(rows)
         }
     }
