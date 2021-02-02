@@ -15,12 +15,19 @@ class GenerateRow(
 ) : Step(info) {
     private lateinit var state: GenerateRowState;
     private var prop: GenerateRowProp = Gson().fromJson(info.option);
+
     init {
 
     }
 
-    override suspend fun process() {
-        putRows(listOf(Row(data = mutableMapOf("name" to "name"))))
+    override suspend fun process(): () -> Unit {
+        if (info.outCount == 0L)
+            putRows(listOf(Row(data = mutableMapOf("name" to "name"))))
+        return {
+            println("unload")
+            println(info)
+            //TODO 销毁操作，保存状态
+        }
     }
 
 }

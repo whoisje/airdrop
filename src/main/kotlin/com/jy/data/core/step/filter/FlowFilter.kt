@@ -10,13 +10,14 @@ import com.jy.data.core.step.StepInfo
 class FlowFilter(
     info: StepInfo,
 ) : Step(info) {
-    override suspend fun process() {
+    override suspend fun process(): () -> Unit {
         getRows().filter {
             it["name"] == "name"
         }.let {
             println(it)
-            putRows(it)
+            println(info)
         }
+        return {}
     }
 
 }

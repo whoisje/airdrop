@@ -21,5 +21,6 @@ fun main() {
     )
     coroutineTask.buildStepClainAndChannel()
     coroutineTask.start()
+    Thread.sleep(4000)
     coroutineTask.cancel()
 }

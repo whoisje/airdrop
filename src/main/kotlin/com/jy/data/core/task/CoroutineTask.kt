@@ -10,6 +10,7 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     //串行or并行
     private var steps = mutableMapOf<String, Step>()
     private var stepJobs = mutableMapOf<String, Job>()
+    private var unloadFunc = mutableMapOf<String, () -> Unit>()
 
     init {
         this.steps = steps;
@@ -17,15 +18,17 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
 
     private var cacheSize = DEFAULT_CHANNEL_SIZE;
 
-
+    /**
+     * 用channel串联步骤
+     */
     fun buildStepClainAndChannel() {
         steps.forEach { (_, step) ->
             step.info.targets.forEach { target ->
-                steps[target]?.let { tStep ->
-                    val receiveChannel = tStep.receiveChannel
+                steps[target]?.let { targetStep ->
+                    val receiveChannel = targetStep.receiveChannel
                     if (receiveChannel == null) {
                         val channel = Channel<List<Row>>(cacheSize)
-                        tStep.receiveChannel = channel
+                        targetStep.receiveChannel = channel
                         step.sendChannels[target] = channel
                     } else {
                         val channel: Channel<List<Row>> = receiveChannel;
@@ -37,10 +40,11 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     }
 
     fun start() {
-        steps.forEach { (t, u) ->
-            stepJobs[t] = GlobalScope.launch {
-                if (isActive) {
-                    u.process()
+        steps.forEach { (key, step) ->
+            stepJobs[key] = GlobalScope.launch {
+                while (isActive) {
+                    val unload = step.process()
+                    unloadFunc.putIfAbsent(key, unload)
                 }
             }
         }
@@ -49,15 +53,17 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     fun cancel(target: String) {
         stepJobs[target]?.let {
             runBlocking {
+                unloadFunc[target]?.invoke()
                 it.cancelAndJoin()
             }
         }
     }
 
     fun cancel() {
-        stepJobs.forEach { (_, u) ->
+        stepJobs.forEach { (key, job) ->
             runBlocking {
-                u.cancelAndJoin()
+                unloadFunc[key]?.invoke()
+                job.cancelAndJoin()
             }
         }
     }

@@ -11,11 +11,11 @@ import kotlinx.coroutines.channels.Channel
  * TODO 顺序执行优先级
  */
 abstract class Step(
-    var info: StepInfo,
+        var info: StepInfo,
 ) {
     var receiveChannel: Channel<List<Row>>? = null
     var sendChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
-    abstract suspend fun process()
+    abstract suspend fun process(): () -> Unit;
     suspend fun getRows(): List<Row> {
         val rows = receiveChannel?.receive() ?: listOf()
         info.inCount += rows.size;
