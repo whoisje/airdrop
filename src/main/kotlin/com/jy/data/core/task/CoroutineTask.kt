@@ -5,6 +5,7 @@ import com.jy.data.core.constant.enums.StepType
 import com.jy.data.core.event.RxBus
 import com.jy.data.core.event.StepExceptionEvent
 import com.jy.data.core.step.Step
+import io.reactivex.rxjava3.disposables.Disposable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.slf4j.LoggerFactory
@@ -15,8 +16,11 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     private var stepJobs = mutableMapOf<String, Job>()
     private var unloadFunc = mutableMapOf<String, () -> Unit>()
     private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
+    private val subscribes = mutableListOf<Disposable>()
 
     init {
+        registerStepErrorHandler()
+        //TODO 步骤应该由task info转换而来，而不是直接传进来
         this.steps = steps;
     }
 
@@ -52,7 +56,7 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     fun start() {
         steps.forEach { (key, step) ->
             stepJobs[key] = GlobalScope.launch {
-                while (isActive) {
+                while (isActive && step.hasMore) {
                     try {
                         val unload = step.process()
                         unloadFunc.putIfAbsent(key, unload)
@@ -79,17 +83,26 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                 job.cancelAndJoin()
                 //调用销毁回调
                 unloadFunc[key]?.invoke()
+                //TODO 处理销毁回调异常？
             }
+        }
+        unSubscribe()
+    }
+
+    private fun unSubscribe() {
+        subscribes.forEach {
+            it.dispose()
         }
     }
 
-    fun handleStepError() {
-        RxBus.instance.toObservable(StepExceptionEvent::class.java)
+    private fun registerStepErrorHandler() {
+        val subscribe = RxBus.instance.toObservable(StepExceptionEvent::class.java)
             .subscribe {
                 GlobalScope.launch {
                     steps[it.info.id]?.putErrorRows(it.rows)
                 }
             }
+        subscribes.add(subscribe)
     }
 
 }

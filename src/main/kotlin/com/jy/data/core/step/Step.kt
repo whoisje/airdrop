@@ -16,6 +16,7 @@ abstract class Step(
     var receiveChannel: Channel<List<Row>>? = null
     var sendChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
     var errorChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
+    var hasMore = true;
 
     /**
      * 记录当前正在处理的row
@@ -46,6 +47,7 @@ abstract class Step(
             channel.value.send(rows)
         }
     }
+
 
     suspend fun putRowsTo(target: String, rows: List<Row>) {
         info.outCount += rows.size
