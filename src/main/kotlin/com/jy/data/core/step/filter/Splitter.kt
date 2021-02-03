@@ -1,5 +1,6 @@
 package com.jy.data.core.step.filter
 
+import com.jy.data.core.row.Row
 import com.jy.data.core.step.Step
 import com.jy.data.core.step.StepInfo
 
@@ -10,7 +11,9 @@ import com.jy.data.core.step.StepInfo
 class Splitter(
     info: StepInfo,
 ) : Step(info) {
-    override suspend fun process() {
+    override suspend fun processRow(inputRow: Row) {
+
     }
+
 
 }

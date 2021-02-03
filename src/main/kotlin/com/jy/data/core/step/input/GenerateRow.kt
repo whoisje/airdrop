@@ -15,7 +15,7 @@ class GenerateRow(
     info: StepInfo,
 ) : Step(info) {
     private var state: GenerateRowState = GenerateRowState()
-    private var prop: GenerateRowProp = Gson().fromJson(info.option);
+    private var prop: GenerateRowProp = Gson().fromJson(info.option)
 
     init {
     }
@@ -25,23 +25,24 @@ class GenerateRow(
         rowMetas.forEach { info ->
             inputRow.put(info.rowMeta, info.value)
         }
-        state.count++
-        if (state.count == this.prop.count) {
-            this.markNoMore()
-        }
         return inputRow
     }
 
-    override suspend fun process() {
-        val inputRow = getRow() ?: return
-        if (info.id=="1235")throw Exception()
-        println("input row $inputRow")
+
+    override suspend fun processRow(inputRow: Row) {
+        this.state.count++
         putRow(generateRow(inputRow))
+    }
+
+
+    override fun hasNext(): Boolean {
+        val hasNext = super.hasNext()
+        return hasNext && state.count != this.prop.count
     }
 
     override fun onStop() {
         //TODO 销毁操作，保存状态state
-        println("unload " + info)
+        println("unload $info")
     }
 
 }

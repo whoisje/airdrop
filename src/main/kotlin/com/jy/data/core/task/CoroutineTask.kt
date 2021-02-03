@@ -1,6 +1,7 @@
 package com.jy.data.core.task
 
 import com.jy.data.core.constant.DEFAULT_CHANNEL_SIZE
+import com.jy.data.core.constant.enums.Status
 import com.jy.data.core.constant.enums.StepType
 import com.jy.data.core.event.RxBus
 import com.jy.data.core.event.StepProcessExceptionEvent
@@ -54,22 +55,29 @@ class CoroutineTask constructor(info: TaskInfo) {
         coroutineScope {
             steps.forEach { (key, step) ->
                 stepJobs[key] = launch {
-                    try {
-                        while (isActive) {
-                            if (step.hasMore) {
+                    while (isActive) {
+                        if (step.hasNext()) {
+                            try {
                                 step.process()
-                            } else {
-                                step.finish()
-                                break
+                            } catch (ignore: CancellationException) {
+                            } catch (e: Exception) {
+                                //没有异常处理步骤，停任务
+                                if (step.errorChannels.isEmpty()) {
+                                    step.info.errorCount++
+                                    this@CoroutineTask.cancel()
+                                } else {
+                                    step.putErrorRow(step.currentRow!!)
+                                }
+                                //广播异常消息
+                                RxBus.instance
+                                    .post(StepProcessExceptionEvent(step.info, e))
                             }
+                        } else {
+                            step.complete()
+                            break
                         }
-                    } catch (ignore: CancellationException) {
-                    } catch (e: Exception) {
-                        RxBus.instance.post(StepProcessExceptionEvent(step.info, e))
-                    } finally {
-                        //TODO 处理销毁回调异常？
-                        step.onStop()
                     }
+
                 }
             }
         }
@@ -77,7 +85,13 @@ class CoroutineTask constructor(info: TaskInfo) {
 
 
     suspend fun cancel() {
-        stepJobs.forEach { (_, job) ->
+        stepJobs.forEach { (key, job) ->
+            steps[key]?.let { step ->
+                if (step.status() != Status.IDLE) {
+                    step.onStop()
+                    step.status(Status.IDLE)
+                }
+            }
             if (!job.isCancelled) {
                 job.cancelAndJoin()
             }
@@ -96,18 +110,7 @@ class CoroutineTask constructor(info: TaskInfo) {
     private fun registerStepErrorHandler() {
         val subscribe = RxBus.instance.toObservable(StepProcessExceptionEvent::class.java)
             .subscribe {
-                val step = steps[it.info.id]!!
-                //没有异常处理步骤，停任务
-                if (step.errorChannels.isEmpty()) {
-                    step.info.errorCount++
-                    GlobalScope.launch {
-                        this@CoroutineTask.cancel()
-                    }
-                } else {
-                    runBlocking {
-                        step.putErrorRow(step.currentRow!!)
-                    }
-                }
+                println(it)
             }
         subscribes.add(subscribe)
     }

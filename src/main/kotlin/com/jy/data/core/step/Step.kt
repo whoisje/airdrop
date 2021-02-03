@@ -1,5 +1,6 @@
 package com.jy.data.core.step
 
+import com.jy.data.core.constant.enums.Status
 import com.jy.data.core.row.EOF_ROW
 import com.jy.data.core.row.Row
 import kotlinx.coroutines.channels.Channel
@@ -17,7 +18,6 @@ abstract class Step(
     var receiveChannel: Channel<Row>? = null
     var sendChannels: MutableMap<String, Channel<Row>> = mutableMapOf()
     var errorChannels: MutableMap<String, Channel<Row>> = mutableMapOf()
-    var hasMore = true
 
     /**
      * 记录当前正在处理的row
@@ -27,24 +27,52 @@ abstract class Step(
     /**
      * 执行步骤，返回值为步骤停止时的回调函数
      */
-    abstract suspend fun process()
+    abstract suspend fun processRow(inputRow: Row)
+
+    /**
+     * 保证current row是当前输入row
+     * 保证第一步getRow
+     */
+    suspend fun process() {
+        val inputRow = getRow() ?: return
+        processRow(inputRow)
+    }
+
     open fun onStop() {
 
     }
 
-    //标记作用，channel为空的时候会堵塞协程，用标记判断而不堵塞
+    fun status(): Status {
+        return Status.statusOf(this.info.status)
+    }
+
+    fun status(status: Status) {
+        this.info.status = status.status
+    }
+
+    /**
+     * 任何步骤必须getRow
+     */
     suspend fun getRow(): Row? {
         if (receiveChannel == null) {
-            return Row()
+            currentRow = Row()
+            return currentRow
         }
         val row = receiveChannel!!.receive()
+        currentRow = row
+        println("get $row")
+        //标记作用，channel为空的时候会堵塞协程，用EOF标记判断而不堵塞
         if (row.isEOFRow()) {
-            this.markNoMore()
             return null
         }
         info.inCount++
-        currentRow = row
         return row
+    }
+
+    open fun hasNext(): Boolean {
+        return currentRow?.run {
+            return@run !isEOFRow()
+        } ?: true
     }
 
     suspend fun putRow(row: Row) {
@@ -52,13 +80,17 @@ abstract class Step(
             if (!row.isEOFRow()) {
                 info.outCount++
             }
+            println("put row")
             sendChannel.value.send(row)
         }
     }
 
-    suspend fun finish() {
+    suspend fun complete() {
+        currentRow = EOF_ROW
         putRow(EOF_ROW)
         putErrorRow(EOF_ROW)
+        onStop()
+        status(Status.IDLE)
     }
 
     suspend fun putErrorRow(row: Row) {
@@ -71,9 +103,6 @@ abstract class Step(
         }
     }
 
-    fun markNoMore() {
-        this.hasMore = false
-    }
 
     suspend fun putRowTo(target: String, row: Row) {
         if (!row.isEOFRow()) {
