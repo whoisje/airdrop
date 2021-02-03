@@ -45,6 +45,7 @@ abstract class Step(
         for (channel in errorChannels) {
             info.errorCount += rows.size
             channel.value.send(rows)
+            //TODO 这里是send是拷贝还是引用？引用可能会有问题。
         }
     }
 

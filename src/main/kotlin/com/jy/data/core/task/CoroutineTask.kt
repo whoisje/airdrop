@@ -3,7 +3,7 @@ package com.jy.data.core.task
 import com.jy.data.core.constant.DEFAULT_CHANNEL_SIZE
 import com.jy.data.core.constant.enums.StepType
 import com.jy.data.core.event.RxBus
-import com.jy.data.core.event.StepExceptionEvent
+import com.jy.data.core.event.StepProcessExceptionEvent
 import com.jy.data.core.step.Step
 import io.reactivex.rxjava3.disposables.Disposable
 import kotlinx.coroutines.*
@@ -61,7 +61,7 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                         val unload = step.process()
                         unloadFunc.putIfAbsent(key, unload)
                     } catch (e: Exception) {
-                        RxBus.instance.post(StepExceptionEvent(step.info, step.currentRows, e))
+                        RxBus.instance.post(StepProcessExceptionEvent(step.info, e))
                     }
                 }
             }
@@ -96,10 +96,16 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
     }
 
     private fun registerStepErrorHandler() {
-        val subscribe = RxBus.instance.toObservable(StepExceptionEvent::class.java)
+        val subscribe = RxBus.instance.toObservable(StepProcessExceptionEvent::class.java)
             .subscribe {
-                GlobalScope.launch {
-                    steps[it.info.id]?.putErrorRows(it.rows)
+                //TODO 这里需要同步操作
+                val step = steps[it.info.id]!!
+                if (step.errorChannels.isEmpty()) {
+                    this.cancel()
+                } else {
+                    GlobalScope.launch {
+                        step.putErrorRows(step.currentRows)
+                    }
                 }
             }
         subscribes.add(subscribe)
