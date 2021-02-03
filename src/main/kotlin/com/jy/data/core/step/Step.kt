@@ -1,5 +1,6 @@
 package com.jy.data.core.step
 
+import com.jy.data.core.row.EOF_ROW
 import com.jy.data.core.row.Row
 import kotlinx.coroutines.channels.Channel
 
@@ -13,45 +14,71 @@ import kotlinx.coroutines.channels.Channel
 abstract class Step(
     var info: StepInfo,
 ) {
-    var receiveChannel: Channel<List<Row>>? = null
-    var sendChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
-    var errorChannels: MutableMap<String, Channel<List<Row>>> = mutableMapOf()
-    var hasMore = true;
+    var receiveChannel: Channel<Row>? = null
+    var sendChannels: MutableMap<String, Channel<Row>> = mutableMapOf()
+    var errorChannels: MutableMap<String, Channel<Row>> = mutableMapOf()
+    var hasMore = true
 
     /**
      * 记录当前正在处理的row
      */
-    var currentRows: List<Row> = mutableListOf();
+    var currentRow: Row? = null;
 
     /**
      * 执行步骤，返回值为步骤停止时的回调函数
      */
-    abstract suspend fun process(): () -> Unit;
-    suspend fun getRows(): List<Row> {
-        val rows = receiveChannel?.receive() ?: listOf()
-        currentRows = rows
-        info.inCount += rows.size;
-        return rows;
+    abstract suspend fun process()
+    open fun onStop() {
+
     }
 
-    suspend fun putRows(rows: List<Row>) {
+    //标记作用，channel为空的时候会堵塞协程，用标记判断而不堵塞
+    suspend fun getRow(): Row? {
+        if (receiveChannel == null) {
+            return Row()
+        }
+        val row = receiveChannel!!.receive()
+        if (row.isEOFRow()) {
+            this.markNoMore()
+            return null
+        }
+        info.inCount++
+        currentRow = row
+        return row
+    }
+
+    suspend fun putRow(row: Row) {
         for (sendChannel in sendChannels) {
-            info.outCount += rows.size
-            sendChannel.value.send(rows)
+            if (!row.isEOFRow()) {
+                info.outCount++
+            }
+            sendChannel.value.send(row)
         }
     }
 
-    suspend fun putErrorRows(rows: List<Row>) {
+    suspend fun finish() {
+        putRow(EOF_ROW)
+        putErrorRow(EOF_ROW)
+    }
+
+    suspend fun putErrorRow(row: Row) {
         for (channel in errorChannels) {
-            info.errorCount += rows.size
-            channel.value.send(rows)
+            if (!row.isEOFRow()) {
+                info.errorCount++
+            }
+            channel.value.send(row)
             //TODO 这里是send是拷贝还是引用？引用可能会有问题。
         }
     }
 
+    fun markNoMore() {
+        this.hasMore = false
+    }
 
-    suspend fun putRowsTo(target: String, rows: List<Row>) {
-        info.outCount += rows.size
-        sendChannels[target]?.send(rows)
+    suspend fun putRowTo(target: String, row: Row) {
+        if (!row.isEOFRow()) {
+            info.outCount++
+        }
+        sendChannels[target]?.send(row)
     }
 }

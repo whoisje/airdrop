@@ -8,23 +8,20 @@ import com.jy.data.core.step.Step
 import io.reactivex.rxjava3.disposables.Disposable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import org.slf4j.LoggerFactory
 
-class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>) {
+class CoroutineTask constructor(info: TaskInfo) {
     //串行or并行
-    private var steps = mutableMapOf<String, Step>()
+    public var steps = mutableMapOf<String, Step>()
     private var stepJobs = mutableMapOf<String, Job>()
-    private var unloadFunc = mutableMapOf<String, () -> Unit>()
-    private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
+
+    //    private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
     private val subscribes = mutableListOf<Disposable>()
 
     init {
         registerStepErrorHandler()
         //TODO 步骤应该由task info转换而来，而不是直接传进来
-        this.steps = steps;
+//        this.steps = Gson().fromJson(info.option);
     }
-
-    private var cacheSize = DEFAULT_CHANNEL_SIZE;
 
     /**
      * TODO 把属性转换为步骤对象
@@ -42,7 +39,7 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
                 steps[target]?.let { targetStep ->
                     val receiveChannel = targetStep.receiveChannel
                     if (receiveChannel == null) {
-                        targetStep.receiveChannel = Channel(cacheSize)
+                        targetStep.receiveChannel = Channel(DEFAULT_CHANNEL_SIZE)
                     }
                     when (StepType.typeOf(targetStep.info.stepType)) {
                         StepType.NORMAL -> step.sendChannels[target] = targetStep.receiveChannel!!
@@ -53,37 +50,36 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
         }
     }
 
-    fun start() {
-        steps.forEach { (key, step) ->
-            stepJobs[key] = GlobalScope.launch {
-                while (isActive && step.hasMore) {
+    suspend fun run() {
+        coroutineScope {
+            steps.forEach { (key, step) ->
+                stepJobs[key] = launch {
                     try {
-                        val unload = step.process()
-                        unloadFunc.putIfAbsent(key, unload)
+                        while (isActive) {
+                            if (step.hasMore) {
+                                step.process()
+                            } else {
+                                step.finish()
+                                break
+                            }
+                        }
+                    } catch (ignore: CancellationException) {
                     } catch (e: Exception) {
                         RxBus.instance.post(StepProcessExceptionEvent(step.info, e))
+                    } finally {
+                        //TODO 处理销毁回调异常？
+                        step.onStop()
                     }
                 }
             }
         }
     }
 
-    fun cancel(target: String) {
-        stepJobs[target]?.let {
-            runBlocking {
-                unloadFunc[target]?.invoke()
-                it.cancelAndJoin()
-            }
-        }
-    }
 
-    fun cancel() {
-        stepJobs.forEach { (key, job) ->
-            runBlocking {
+    suspend fun cancel() {
+        stepJobs.forEach { (_, job) ->
+            if (!job.isCancelled) {
                 job.cancelAndJoin()
-                //调用销毁回调
-                unloadFunc[key]?.invoke()
-                //TODO 处理销毁回调异常？
             }
         }
         unSubscribe()
@@ -91,20 +87,25 @@ class CoroutineTask constructor(info: TaskInfo, steps: MutableMap<String, Step>)
 
     private fun unSubscribe() {
         subscribes.forEach {
-            it.dispose()
+            if (!it.isDisposed) {
+                it.dispose()
+            }
         }
     }
 
     private fun registerStepErrorHandler() {
         val subscribe = RxBus.instance.toObservable(StepProcessExceptionEvent::class.java)
             .subscribe {
-                //TODO 这里需要同步操作
                 val step = steps[it.info.id]!!
+                //没有异常处理步骤，停任务
                 if (step.errorChannels.isEmpty()) {
-                    this.cancel()
-                } else {
+                    step.info.errorCount++
                     GlobalScope.launch {
-                        step.putErrorRows(step.currentRows)
+                        this@CoroutineTask.cancel()
+                    }
+                } else {
+                    runBlocking {
+                        step.putErrorRow(step.currentRow!!)
                     }
                 }
             }
