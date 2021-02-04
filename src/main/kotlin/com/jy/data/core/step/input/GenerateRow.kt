@@ -14,11 +14,8 @@ import com.jy.data.core.step.StepInfo
 class GenerateRow(
     info: StepInfo,
 ) : Step(info) {
-    private var state: GenerateRowState = GenerateRowState()
+    private var state: GenerateRowState = Gson().fromJson(info.state)
     private var prop: GenerateRowProp = Gson().fromJson(info.option)
-
-    init {
-    }
 
     private fun generateRow(inputRow: Row): Row {
         val rowMetas = this.prop.rowInfos
@@ -35,21 +32,6 @@ class GenerateRow(
             putRow(generateRow(inputRow))
         }
     }
-
-
-//    override fun hasNext(): Boolean {
-//        val hasNext = super.hasNext()
-//        if (!hasNext) {
-//            return false
-//        }
-//        return state.count != this.prop.count
-//    }
-
-    override fun onStop() {
-        //TODO 销毁操作，保存状态state
-        println("unload $info")
-    }
-
 }
 
 data class GenerateRowState(

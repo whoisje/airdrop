@@ -9,9 +9,6 @@ import kotlinx.coroutines.channels.Channel
  * @Author Je.Wang
  * @Date 2021/2/2 12:30
  */
-/**
- * TODO 顺序执行优先级
- */
 abstract class Step(
     var info: StepInfo,
 ) {
@@ -75,7 +72,6 @@ abstract class Step(
             if (!row.isEOFRow()) {
                 info.outCount++
             }
-            println("put row")
             sendChannel.value.send(row)
         }
     }

@@ -12,6 +12,7 @@ data class StepInfo(
     val name: String,
     val id: String,
     var option: JsonObject,
+    var state: JsonObject = JsonObject(),
     var inCount: Long = 0,
     var outCount: Long = 0,
     var errorCount: Long = 0,

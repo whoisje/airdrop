@@ -5,31 +5,17 @@ import com.jy.data.core.constant.enums.Status
 import com.jy.data.core.constant.enums.StepType
 import com.jy.data.core.event.RxBus
 import com.jy.data.core.event.StepProcessExceptionEvent
-import com.jy.data.core.step.Step
 import io.reactivex.rxjava3.disposables.Disposable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import org.slf4j.LoggerFactory
 
 class CoroutineTask constructor(info: TaskInfo) {
-    //串行or并行
-    var steps = mutableMapOf<String, Step>()
+    var steps = info.steps.map { it.info.id to it }.toMap()
     private var stepJobs = mutableMapOf<String, Job>()
 
-    //    private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
+    private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
     private val subscribes = mutableListOf<Disposable>()
-
-    init {
-        registerStepErrorHandler()
-        //TODO 步骤应该由task info转换而来，而不是直接传进来
-//        this.steps = Gson().fromJson(info.option);
-    }
-
-    /**
-     * TODO 把属性转换为步骤对象
-     */
-    fun convertOptionToStep() {
-
-    }
 
     /**
      * 用channel串联步骤
