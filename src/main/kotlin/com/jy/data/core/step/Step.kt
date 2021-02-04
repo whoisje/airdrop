@@ -31,17 +31,17 @@ abstract class Step(
 
     /**
      * 保证current row是当前输入row
-     * 保证第一步getRow
      */
     suspend fun process() {
-        if (receiveChannel == null) {
+        val channel = receiveChannel
+        if (channel == null) {
             val row = Row()
             currentRow = row
             processRow(row)
             complete()
             return
         }
-        for (row in receiveChannel!!) {
+        for (row in channel) {
             if (row.isEOFRow()) {
                 complete()
                 return
