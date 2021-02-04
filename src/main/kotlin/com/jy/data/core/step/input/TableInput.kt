@@ -4,11 +4,15 @@ import cn.hutool.db.sql.NamedSql
 import cn.hutool.db.sql.SqlExecutor
 import com.github.salomonbrys.kotson.fromJson
 import com.google.gson.Gson
+import com.jy.data.core.constant.enums.DbFetchSize
+import com.jy.data.core.constant.enums.DbType
 import com.jy.data.core.db.AirDSFactory
+import com.jy.data.core.expand.toRow
 import com.jy.data.core.row.Row
 import com.jy.data.core.step.Step
 import com.jy.data.core.step.StepInfo
-import java.sql.ResultSet
+import kotlinx.coroutines.runBlocking
+import java.sql.PreparedStatement
 
 
 /**
@@ -20,27 +24,35 @@ class TableInput(
 ) : Step(info) {
     private var state: TableInputState = Gson().fromJson(info.state)
     private var prop: TableInputProp = Gson().fromJson(info.option)
+    private var prepareStatement: PreparedStatement;
 
     init {
         val ds = AirDSFactory.get(prop.dbId)
         val connection = ds.connection
-        val namedSql = NamedSql(prop.sql)
+        val fetchSize = DbFetchSize.valueOf(
+            DbType.productOf(connection.metaData.databaseProductName).name
+        ).fetchSize
+        prepareStatement = connection.prepareStatement(prop.sql)
+        prepareStatement.fetchSize = fetchSize
     }
 
     override suspend fun processRow(inputRow: Row) {
-        val ds = AirDSFactory.get(prop.dbId)
-        val connection = ds.connection
-        val sql = "select team_name as teamName from team where team_name = :team_name"
-        val namedSql = NamedSql(sql, mapOf("team_name" to "项目一组"))
-        val prepareStatement = connection.prepareStatement(
-            namedSql.sql,
-            ResultSet.TYPE_FORWARD_ONLY,
-            ResultSet.CONCUR_READ_ONLY
+        val namedSql = NamedSql(prop.sql, inputRow.data)
+        SqlExecutor.queryAndClosePs(
+            prepareStatement, {
+                runBlocking {
+                    val metaData = it.metaData
+                    var index = 0;
+                    while (it.next() && (index < prop.querySize || prop.queryAll)) {
+                        if (index < state.count) continue//跳过上次已经取过的数据
+                        state.count++
+                        index++
+                        putRow(it.toRow(metaData))
+                    }
+                }
+            },
+            *namedSql.params
         )
-        prepareStatement.fetchSize = Int.MIN_VALUE
-        SqlExecutor.query(prepareStatement, {
-            println(it.metaData)
-        }, *namedSql.params)
     }
 }
 
@@ -52,5 +64,5 @@ data class TableInputProp(
 )
 
 data class TableInputState(
-    val count: Long,
+    var count: Long,
 )
