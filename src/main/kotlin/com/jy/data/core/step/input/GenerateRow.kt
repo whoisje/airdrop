@@ -30,15 +30,20 @@ class GenerateRow(
 
 
     override suspend fun processRow(inputRow: Row) {
-        this.state.count++
-        putRow(generateRow(inputRow))
+        for (i in 0 until prop.count) {
+            this.state.count++
+            putRow(generateRow(inputRow))
+        }
     }
 
 
-    override fun hasNext(): Boolean {
-        val hasNext = super.hasNext()
-        return hasNext && state.count != this.prop.count
-    }
+//    override fun hasNext(): Boolean {
+//        val hasNext = super.hasNext()
+//        if (!hasNext) {
+//            return false
+//        }
+//        return state.count != this.prop.count
+//    }
 
     override fun onStop() {
         //TODO 销毁操作，保存状态state

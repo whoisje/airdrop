@@ -12,7 +12,7 @@ import kotlinx.coroutines.channels.Channel
 
 class CoroutineTask constructor(info: TaskInfo) {
     //串行or并行
-    public var steps = mutableMapOf<String, Step>()
+    var steps = mutableMapOf<String, Step>()
     private var stepJobs = mutableMapOf<String, Job>()
 
     //    private val logger = LoggerFactory.getLogger(CoroutineTask::class.java)
@@ -74,6 +74,8 @@ class CoroutineTask constructor(info: TaskInfo) {
                             }
                         } else {
                             step.complete()
+                            step.onStop()
+                            step.status(Status.IDLE)
                             break
                         }
                     }

@@ -22,7 +22,7 @@ abstract class Step(
     /**
      * 记录当前正在处理的row
      */
-    var currentRow: Row? = null;
+    var currentRow: Row? = null
 
     /**
      * 执行步骤，返回值为步骤停止时的回调函数
@@ -34,8 +34,22 @@ abstract class Step(
      * 保证第一步getRow
      */
     suspend fun process() {
-        val inputRow = getRow() ?: return
-        processRow(inputRow)
+        if (receiveChannel == null) {
+            val row = Row()
+            currentRow = row
+            processRow(row)
+            complete()
+            return
+        }
+        for (row in receiveChannel!!) {
+            if (row.isEOFRow()) {
+                complete()
+                return
+            }
+            currentRow = row
+            info.inCount++
+            processRow(row)
+        }
     }
 
     open fun onStop() {
@@ -50,26 +64,7 @@ abstract class Step(
         this.info.status = status.status
     }
 
-    /**
-     * 任何步骤必须getRow
-     */
-    suspend fun getRow(): Row? {
-        if (receiveChannel == null) {
-            currentRow = Row()
-            return currentRow
-        }
-        val row = receiveChannel!!.receive()
-        currentRow = row
-        println("get $row")
-        //标记作用，channel为空的时候会堵塞协程，用EOF标记判断而不堵塞
-        if (row.isEOFRow()) {
-            return null
-        }
-        info.inCount++
-        return row
-    }
-
-    open fun hasNext(): Boolean {
+    fun hasNext(): Boolean {
         return currentRow?.run {
             return@run !isEOFRow()
         } ?: true
@@ -89,8 +84,6 @@ abstract class Step(
         currentRow = EOF_ROW
         putRow(EOF_ROW)
         putErrorRow(EOF_ROW)
-        onStop()
-        status(Status.IDLE)
     }
 
     suspend fun putErrorRow(row: Row) {

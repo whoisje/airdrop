@@ -67,6 +67,7 @@ fun main() {
     coroutineTask.buildStepClainAndChannel()
     runBlocking {
          coroutineTask.run()
+        coroutineTask.cancel()
         println("run over")
     }
 
